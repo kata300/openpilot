@@ -1,4 +1,5 @@
 from cereal import car
+from openpilot.common.params import Params
 from openpilot.common.conversions import Conversions as CV
 from panda import Panda
 from panda.python import uds
@@ -40,15 +41,17 @@ class CarInterface(CarInterfaceBase):
 
       ret.steerActuatorDelay = 0.12  # Default delay, Prius has larger delay
       ret.steerLimitTimer = 0.4
+      ret.hasZss = 0x23 in fingerprint[0] #Detect if ZSS is present
 
     ret.stoppingControl = False  # Toyota starts braking more when it thinks you want to stop
 
     stop_and_go = candidate in TSS2_CAR
-
+    steering_angle_deadzone_deg = 0.0
+    CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning, steering_angle_deadzone_deg)
     if candidate == CAR.PRIUS:
       stop_and_go = True
       ret.wheelbase = 2.70
-      ret.steerRatio = 15.74   # unknown end-to-end spec
+      ret.steerRatio = 15.0   # unknown end-to-end spec
       ret.tireStiffnessFactor = 0.6371   # hand-tune
       ret.mass = 3045. * CV.LB_TO_KG
       # Only give steer angle deadzone to for bad angle sensor prius
@@ -56,7 +59,17 @@ class CarInterface(CarInterfaceBase):
         if fw.ecu == "eps" and not fw.fwVersion == b'8965B47060\x00\x00\x00\x00\x00\x00':
           ret.steerActuatorDelay = 0.25
           CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning, steering_angle_deadzone_deg=0.2)
-
+    if candidate == CAR.PRIUS and ret.hasZss:
+      stop_and_go == True
+      ret.wheelbase = 2.70
+      ret.steerRatio = 15.0 # unknown end-to-end spec
+      tireStiffnessFactor = 0.6371 # hand-tune
+      ret.mass = 3045. * CV.LB_TO_KG
+      # Only give steer angle deadzone to for bad angle sensor prius
+      for fw in car_fw:
+        if fw.ecu == "eps" and not fw.fwVersion == b'8965B47060\x00\x00\x00\x00\x00\x00':
+            #steering_angle_deadzone_deg
+            CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning, steering_angle_deadzone_deg)
     elif candidate == CAR.PRIUS_V:
       stop_and_go = True
       ret.wheelbase = 2.78
